@@ -83,6 +83,27 @@ You can finetune Pix2Rep-v2 separately on three cardiac datasets ACDC, M&Ms and 
 python -m scripts.cardiac.finetune_pix2repv2 --pretraining_dataset MnMs2 --exp_name {put_your_experiment_name} --backbone_name {name_of_the_pretrained_backbone}
 ```
 
+## Echocardiography (CAMUS)
+
+Pix2Rep-v2 can also be pretrained and finetuned on the 2D echocardiography dataset [CAMUS](https://www.creatis.insa-lyon.fr/Challenge/camus/) (2CH/4CH views, labels: LV cavity, LV myocardium, left atrium). Code: `pix2repv2/data/camus.py`, ultrasound-specific settings: `camus:` block in `config/data/data.yaml`.
+
+```bash
+# 1. (recommended) convert the .nii.gz release to uncompressed uint8 .nii (~60x faster frame reads)
+python scripts/preprocessing/CAMUS/CAMUS_preprocess.py --input_dir data/CAMUS_public --output_dir data/CAMUS_processed
+export CAMUS_DATASET_FOLDER=$PWD/data/CAMUS_processed   # or data/CAMUS_public (both layouts work)
+
+# 2. pretraining on all half-sequence frames of the 400 training patients (val: 50 validation patients)
+python -m scripts.cardiac.pretrain_pix2repv2 --pretraining_dataset CAMUS --exp_name {exp_name}
+
+# 3. finetuning on ED/ES images; num_patients = % of the 400 training patients (stratified by image quality)
+python -m scripts.cardiac.finetune_pix2repv2 --finetuning_dataset CAMUS --exp_name {ft_exp_name} --backbone_name {exp_name} --overrides finetuning.num_patients=5
+
+# 4. evaluation on the 50 official test patients (200 images, Dice in the original image space)
+python -m scripts.cardiac.evaluate_pix2repv2 --evaluation_dataset CAMUS --finetuning_exp_name {ft_exp_name}
+```
+
+Differences from the cine-MRI pipeline: images are 2D and are resampled to `camus.target_spacing` (0.6 mm by default, native 0.308 mm) at *every* stage including pretraining. Pretraining patches are centered inside the ultrasound sector. Multiplicative speckle noise is added, and intensity inversion is reduced (pretraining) or disabled (finetuning). The official CAMUS train/val/test split is used, with no random slice-level validation split.
+
 ## In-context segmentation with Pix2Rep-v2
 
 You can perform in-context segmentation with Pix2Rep-v2 on cardiac applications. The only things you need are a pretrained Pix2Rep-v2 model (we will provide Pix2Repv2+UNet and Pix2Repv2+SwinUNETR models) and a support dataset {ACDC, MnMs or MnMs2}. You also need to specify $|X_s|$, i.e., the percentage of patients to include in the support set (in the following example, we use $|X_s|=1\%$ for the MnMs2 dataset):

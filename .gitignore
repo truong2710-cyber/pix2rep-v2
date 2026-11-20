@@ -7,4 +7,4 @@ results/
 wandb/
 lightning_logs/
 output/
-data/
+/data/

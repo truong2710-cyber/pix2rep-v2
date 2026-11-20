@@ -11,6 +11,7 @@ from loguru import logger
 from wandb_osh.lightning_hooks import TriggerWandbSyncLightningCallback
 
 import pix2repv2.data.acdc as acdc
+import pix2repv2.data.camus as camus
 import pix2repv2.data.mnms as mnms
 import pix2repv2.data.mnms2 as mnms2
 from pix2repv2.data.acdc import (
@@ -18,6 +19,7 @@ from pix2repv2.data.acdc import (
     build_patch_loader,
     create_train_val_subsets,
 )
+from pix2repv2.data.camus import CAMUSPatchSupervised
 from pix2repv2.data.mnms import MnMsPatchSupervised
 from pix2repv2.data.mnms2 import MnMs2PatchSupervised
 from pix2repv2.finetuning_module import Pix2Repv2FinetuningModule
@@ -131,7 +133,7 @@ if __name__ == "__main__":
         "--finetuning_dataset",
         type=str,
         default="ACDC",
-        help="Which dataset to use for finetuning {ACDC, MnMs, MnMs2}",
+        help="Which dataset to use for finetuning {ACDC, MnMs, MnMs2, CAMUS}",
     )
     parser.add_argument(
         "--exp_name",
@@ -250,10 +252,39 @@ if __name__ == "__main__":
             shuffle=False,
         )
 
+    elif args.finetuning_dataset == "CAMUS":
+        # num_patients = percentage of the 400 official training patients
+        selected_patients = camus.select_nested_patient_ids(cfg)
+        camus_train_sup_patch_ds = CAMUSPatchSupervised(
+            cfg=cfg,
+            is_resampled=True,
+            apply_augmentations=True,
+            apply_elastic_transform=True,
+            selected_patients=selected_patients,
+            split="training",
+        )
+        camus_val_sup_patch_ds = CAMUSPatchSupervised(
+            cfg=cfg,
+            is_resampled=True,
+            apply_augmentations=False,
+            split="validation",
+        )
+        logger.info("CAMUS dataloaders construction")
+        train_loader_sup = build_patch_loader(
+            camus_train_sup_patch_ds,
+            batch_size=cfg.data.batch_size_finetuning,
+            shuffle=True,
+        )
+        val_loader_sup = build_patch_loader(
+            camus_val_sup_patch_ds,
+            batch_size=cfg.data.batch_size_finetuning,
+            shuffle=False,
+        )
+
     else:
         raise ValueError(
             f"Unknown dataset for finetuning: {args.finetuning_dataset}. "
-            f"Should be {{ACDC, MnMs, MnMs2}}"
+            f"Should be {{ACDC, MnMs, MnMs2, CAMUS}}"
         )
 
     main(

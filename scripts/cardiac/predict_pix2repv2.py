@@ -10,6 +10,7 @@ from loguru import logger
 from monai.inferers import sliding_window_inference
 
 from pix2repv2.data.acdc import ACDCSupervisedEval, build_patch_loader
+from pix2repv2.data.camus import CAMUSSupervisedEval
 from pix2repv2.data.mnms import MnMsSupervisedEval
 from pix2repv2.data.mnms2 import MnMs2SupervisedEval
 from pix2repv2.finetuning_module import Pix2Repv2FinetuningModule
@@ -136,7 +137,7 @@ if __name__ == "__main__":
         "--dataset",
         type=str,
         default="ACDC",
-        help="Which dataset to use for plotting segmentation predictions {ACDC, MnMs, MnMs2}",
+        help="Which dataset to use for plotting segmentation predictions {ACDC, MnMs, MnMs2, CAMUS}",
     )
     parser.add_argument(
         "--finetuning_exp_name",
@@ -203,10 +204,15 @@ if __name__ == "__main__":
         logger.info("MnMs2 test dataloader construction")
         loader = build_patch_loader(test_volume_ds, batch_size=1, shuffle=False)
 
+    elif args.dataset == "CAMUS":
+        test_volume_ds = CAMUSSupervisedEval(cfg=cfg, is_resampled=True)
+        logger.info("CAMUS test dataloader construction")
+        loader = build_patch_loader(test_volume_ds, batch_size=1, shuffle=False)
+
     else:
         raise ValueError(
             f"Unknown dataset for prediction: {args.dataset}. "
-            f"Should be {{ACDC, MnMs, MnMs2}}"
+            f"Should be {{ACDC, MnMs, MnMs2, CAMUS}}"
         )
 
     main(

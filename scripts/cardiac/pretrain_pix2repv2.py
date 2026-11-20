@@ -14,6 +14,7 @@ from pix2repv2.data.acdc import (
     build_patch_loader,
     create_train_val_subsets,
 )
+from pix2repv2.data.camus import CAMUSPatchSSL
 from pix2repv2.data.mnms import MnMsPatchSSL
 from pix2repv2.data.mnms2 import MnMs2PatchSSL
 from pix2repv2.pretraining_module import Pix2Repv2PretrainingModule
@@ -104,7 +105,7 @@ if __name__ == "__main__":
         "--pretraining_dataset",
         type=str,
         default="ACDC",
-        help="Which dataset(s) to use for pretraining. Could be ACDC, MnMs, MnMs2 or all",
+        help="Which dataset(s) to use for pretraining. Could be ACDC, MnMs, MnMs2, all (cardiac MRI) or CAMUS (echocardiography)",
     )
     parser.add_argument(
         "--exp_name",
@@ -198,6 +199,33 @@ if __name__ == "__main__":
             shuffle=False,
         )
 
+    elif args.pretraining_dataset == "CAMUS":
+        # CAMUS has an official train/val/test split: pretrain on all half-sequence frames of
+        # the training patients, validate on the validation patients (test patients unseen).
+        camus_ssl_patch_ds = CAMUSPatchSSL(
+            cfg=cfg,
+            apply_augmentations=True,
+            apply_elastic_transform=True,
+            split="training",
+        )
+        val_camus_ssl_patch_ds = CAMUSPatchSSL(
+            cfg=cfg,
+            apply_augmentations=False,
+            apply_elastic_transform=False,
+            split="validation",
+        )
+        logger.info("CAMUS dataloaders construction")
+        train_loader_ssl = build_patch_loader(
+            patch_dataset=camus_ssl_patch_ds,
+            batch_size=cfg.data.batch_size_pretraining,
+            shuffle=True,
+        )
+        val_loader_ssl = build_patch_loader(
+            patch_dataset=val_camus_ssl_patch_ds,
+            batch_size=cfg.data.batch_size_pretraining,
+            shuffle=False,
+        )
+
     elif args.pretraining_dataset == "all":
         acdc_patch_ds = ACDCPatchSSL(
             cfg=cfg,
@@ -259,7 +287,7 @@ if __name__ == "__main__":
     else:
         raise ValueError(
             f"Unknown dataset(s) for pretraining: {args.pretraining_dataset}. "
-            f"Should be ACDC, MnMs, MnMs2 or all"
+            f"Should be ACDC, MnMs, MnMs2, all or CAMUS"
         )
 
     main(

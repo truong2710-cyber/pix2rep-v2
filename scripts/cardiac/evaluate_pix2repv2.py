@@ -18,6 +18,7 @@ from pix2repv2.data.acdc import (
     build_patch_loader,
     create_train_val_subsets,
 )
+from pix2repv2.data.camus import CAMUSPatchSupervised, CAMUSSupervisedEval
 from pix2repv2.data.mnms import MnMsPatchSupervised, MnMsSupervisedEval
 from pix2repv2.data.mnms2 import MnMs2PatchSupervised, MnMs2SupervisedEval
 from pix2repv2.finetuning_module import Pix2Repv2FinetuningModule
@@ -187,7 +188,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--evaluation_dataset",
         type=str,
-        help="Which dataset to use for evaluation of finetuned models {ACDC, MnMs, MnMs2}",
+        help="Which dataset to use for evaluation of finetuned models {ACDC, MnMs, MnMs2, CAMUS}",
     )
     parser.add_argument(
         "--finetuning_exp_name",
@@ -284,10 +285,24 @@ if __name__ == "__main__":
                 shuffle=False,
             )
 
+        elif args.evaluation_dataset == "CAMUS":
+            camus_val_sup_patch_ds = CAMUSPatchSupervised(
+                cfg=cfg,
+                is_resampled=True,
+                apply_augmentations=False,
+                split="validation",
+            )
+            logger.info("CAMUS validation dataloader construction")
+            loader = build_patch_loader(
+                camus_val_sup_patch_ds,
+                batch_size=cfg.data.batch_size_pretraining,
+                shuffle=False,
+            )
+
         else:
             raise ValueError(
                 f"Unknown dataset for evaluation: {args.evaluation_dataset}. "
-                f"Should be {{ACDC, MnMs, MnMs2}}"
+                f"Should be {{ACDC, MnMs, MnMs2, CAMUS}}"
             )
 
     elif args.split == "test":
@@ -320,10 +335,16 @@ if __name__ == "__main__":
             logger.info("MnMs2 test dataloader construction")
             loader = build_patch_loader(test_volume_ds, batch_size=1, shuffle=False)
 
+        elif args.evaluation_dataset == "CAMUS":
+            # one batch = one 2D image (patient x view x ED/ES) with a singleton depth dim
+            test_volume_ds = CAMUSSupervisedEval(cfg=cfg, is_resampled=True)
+            logger.info("CAMUS test dataloader construction")
+            loader = build_patch_loader(test_volume_ds, batch_size=1, shuffle=False)
+
         else:
             raise ValueError(
                 f"Unknown dataset for evaluation: {args.evaluation_dataset}. "
-                f"Should be {{ACDC, MnMs, MnMs2}}"
+                f"Should be {{ACDC, MnMs, MnMs2, CAMUS}}"
             )
 
     else:

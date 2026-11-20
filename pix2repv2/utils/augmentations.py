@@ -4,6 +4,7 @@ from collections import defaultdict
 from typing import Callable, Sequence, Union
 
 import numpy as np
+import torch
 import torchio as tio
 from connectome import Input, Mixin, Transform, inverse, optional, positional
 from imops import crop_to_box, pad, zoom, zoom_to_shape
@@ -31,6 +32,25 @@ class RandomInvert(tio.Transform):
             x = image.data
             x = x.clamp(self.min_val, self.max_val)
             image.set_data(self.max_val - x)
+        return subject
+
+
+class RandomSpeckleNoise(tio.Transform):
+    """Multiplicative (speckle-like) noise for ultrasound images: x <- x * (1 + s * n),
+    with n ~ N(0, 1) and s ~ U(std). Should be applied after intensity rescaling (x >= 0).
+    Output is clamped to non-negative values so that subsequent gamma transforms stay valid.
+    """
+
+    def __init__(self, std: tuple[float, float] = (0.0, 0.15), p: float = 0.3):
+        super().__init__(p=p)
+        self.std = std
+
+    def apply_transform(self, subject):
+        s = np.random.uniform(*self.std)
+        for image in subject.get_images(intensity_only=True):
+            x = image.data
+            noise = torch.randn_like(x) * s
+            image.set_data((x * (1.0 + noise)).clamp(min=0.0))
         return subject
 
 

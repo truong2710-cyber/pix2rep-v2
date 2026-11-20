@@ -1,4 +1,15 @@
 val_ratio: 0.1
-batch_size_pretraining: 8 
+batch_size_pretraining: 16 
 batch_size_finetuning: 16
 random_seed: 42
+
+# CAMUS (2D echocardiography) specific parameters. Ignored by the cine-MRI datasets.
+camus:
+  target_spacing: 0.6 # mm, in-plane resampling for all stages (native CAMUS spacing: 0.308 mm)
+  views: [2CH, 4CH]
+  use_half_sequence_gt: false # false: finetune on ED/ES images only (standard benchmark)
+  # Ultrasound-specific photometric augmentations (other params shared with the MRI configs)
+  speckle_noise_std: 0.15 # multiplicative noise, std ~ U(0, speckle_noise_std)
+  speckle_noise_p: 0.3
+  pretraining_random_invert_p: 0.1 # inverted B-mode images never occur in practice
+  finetuning_random_invert_p: 0.0
