@@ -793,7 +793,7 @@ def build_patch_loader(
     Returns:
         torch.utils.data.DataLoader: DataLoader for the given patch dataset.
     """
-    n_cpus = int(os.environ.get("SLURM_CPUS_PER_TASK", 1))
+    n_cpus = int(os.environ.get("SLURM_CPUS_PER_TASK", os.cpu_count() or 1))
     num_workers = max(n_cpus - 1, 0)
     logger.info(f"Using num_workers = {num_workers}")
     if num_workers == 0:
