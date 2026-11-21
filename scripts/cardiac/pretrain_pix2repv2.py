@@ -1,4 +1,5 @@
 import argparse
+import os
 
 import torch
 import wandb_osh
@@ -29,11 +30,18 @@ def main(
     val_loader_ssl: torch.utils.data.DataLoader,
     experiment_name: str,
     distributed: bool,
+    resume: bool = False,
+    wandb_id: str | None = None,
 ):
+    wandb_kwargs = {}
+    if wandb_id is not None:
+        # Continue logging into an existing WandB run (same curves) instead of creating a new one
+        wandb_kwargs = {"id": wandb_id, "resume": "allow"}
     wandb_logger = WandbLogger(
         project="Pix2Repv2-pretraining",
         name=experiment_name,
         save_dir="output",
+        **wandb_kwargs,
     )
 
     last_ckpt_callback = ModelCheckpoint(
@@ -90,7 +98,17 @@ def main(
             best_ckpt_callback,
         ],
     )
-    trainer.fit(model, train_loader_ssl, val_loader_ssl)
+    ckpt_path = None
+    if resume:
+        # Full checkpoint (weights + optimizer + LR scheduler + epoch/step counters) written at the
+        # end of every epoch. Resuming requires the same batch size and num_epochs as the original
+        # run, since the LR schedule is computed from the total number of steps.
+        ckpt_path = f"output/lightning_logs/pretraining/cardiac/{experiment_name}/checkpoints/last.ckpt"
+        if not os.path.exists(ckpt_path):
+            raise FileNotFoundError(f"--resume given but no checkpoint found at {ckpt_path}")
+        logger.info(f"Resuming pretraining from {ckpt_path}")
+
+    trainer.fit(model, train_loader_ssl, val_loader_ssl, ckpt_path=ckpt_path)
 
     if num_nodes > 1:
         if trainer.strategy.launcher is not None:
@@ -117,6 +135,19 @@ if __name__ == "__main__":
         action="store_true",  # Sets the value to True if the flag is present
         default=False,  # Sets the value to False if the flag is absent
         help="Whether to use distributed training (DDP)",
+    )
+    parser.add_argument(
+        "--resume",
+        action="store_true",
+        default=False,
+        help="Resume from output/lightning_logs/pretraining/cardiac/<exp_name>/checkpoints/last.ckpt "
+        "(use the same --overrides, e.g. batch size, as the original run)",
+    )
+    parser.add_argument(
+        "--wandb_id",
+        type=str,
+        default=None,
+        help="ID of an existing WandB run to keep logging into (e.g. when resuming)",
     )
     parser.add_argument("--overrides", nargs="*", default=[])
     args = parser.parse_args()
@@ -296,4 +327,6 @@ if __name__ == "__main__":
         val_loader_ssl=val_loader_ssl,
         experiment_name=args.exp_name,
         distributed=args.distributed,
+        resume=args.resume,
+        wandb_id=args.wandb_id,
     )
