@@ -1033,3 +1033,36 @@ class ModelCheckpointSymlink(ModelCheckpoint):
         # Create symlink to current best checkpoint
         target = os.path.abspath(self.best_model_path)
         os.symlink(target, best_ckpt_path)
+
+
+_STRATEGY_SHORT = {"finetuning": "finetune", "linear_probing": "linprobe", "scratch": "scratch"}
+
+
+def wandb_run_meta(
+    dataset: str,
+    stage: str,
+    exp_name: str,
+    strategy: str | None = None,
+    label_pct: int | None = None,
+    backbone_name: str | None = None,
+) -> dict:
+    """WandB display name, group, tags and config following the naming convention
+    `{dataset}-pretrain` and `{dataset}-{strategy}-{pct}pct[-{backbone}]`.
+    The local experiment name (output dirs, metrics files) is kept in config as `exp.local_name`."""
+    if stage == "pretrain":
+        name = f"{dataset}-pretrain"
+        return dict(name=name, group=name, tags=[dataset, "pretrain"], config={"exp.local_name": exp_name})
+    st = _STRATEGY_SHORT.get(strategy, strategy)
+    bb = None
+    if st != "scratch" and backbone_name:
+        m = re.match(rf"pretrain_{re.escape(dataset)}_(ep\d+)$", backbone_name)
+        bb = m.group(1) if m else backbone_name
+    name = f"{dataset}-{st}-{label_pct}pct" + (f"-{bb}" if bb else "")
+    tags = [dataset, st, f"{label_pct}pct"] + ([f"backbone-{bb}"] if bb else [])
+    config = {
+        "exp.strategy": st,
+        "exp.label_pct": label_pct,
+        "exp.backbone": backbone_name if st != "scratch" else "none",
+        "exp.local_name": exp_name,
+    }
+    return dict(name=name, group=f"{dataset}-{st}", tags=tags, config=config)

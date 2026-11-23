@@ -19,7 +19,7 @@ from pix2repv2.data.camus import CAMUSPatchSSL
 from pix2repv2.data.mnms import MnMsPatchSSL
 from pix2repv2.data.mnms2 import MnMs2PatchSSL
 from pix2repv2.pretraining_module import Pix2Repv2PretrainingModule
-from pix2repv2.utils.utils import Config, ModelCheckpointSymlink
+from pix2repv2.utils.utils import Config, ModelCheckpointSymlink, wandb_run_meta
 
 wandb_osh.set_log_level("ERROR")
 
@@ -32,17 +32,22 @@ def main(
     distributed: bool,
     resume: bool = False,
     wandb_id: str | None = None,
+    dataset: str = "ACDC",
 ):
+    meta = wandb_run_meta(dataset=dataset, stage="pretrain", exp_name=experiment_name)
     wandb_kwargs = {}
     if wandb_id is not None:
         # Continue logging into an existing WandB run (same curves) instead of creating a new one
         wandb_kwargs = {"id": wandb_id, "resume": "allow"}
     wandb_logger = WandbLogger(
         project="Pix2Repv2-pretraining",
-        name=experiment_name,
+        name=meta["name"],
+        group=meta["group"],
+        tags=meta["tags"],
         save_dir="output",
         **wandb_kwargs,
     )
+    wandb_logger.experiment.config.update(meta["config"], allow_val_change=True)
 
     last_ckpt_callback = ModelCheckpoint(
         dirpath=f"output/lightning_logs/pretraining/cardiac/{experiment_name}/checkpoints/",
@@ -329,4 +334,5 @@ if __name__ == "__main__":
         distributed=args.distributed,
         resume=args.resume,
         wandb_id=args.wandb_id,
+        dataset=args.pretraining_dataset,
     )

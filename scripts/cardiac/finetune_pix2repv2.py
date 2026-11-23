@@ -28,6 +28,7 @@ from pix2repv2.utils.utils import (
     Config,
     ModelCheckpointSymlink,
     finetuning_logging_every_n_steps,
+    wandb_run_meta,
 )
 
 wandb_osh.set_log_level("ERROR")
@@ -41,12 +42,24 @@ def main(
     backbone_name: str,
     ckpt_name: str,
     strategy: "str",
+    dataset: str,
 ):
+    meta = wandb_run_meta(
+        dataset=dataset,
+        stage="finetune",
+        exp_name=exp_name,
+        strategy=strategy,
+        label_pct=cfg.finetuning.num_patients,
+        backbone_name=backbone_name,
+    )
     wandb_logger = WandbLogger(
         project="Pix2Repv2-finetuning",
-        name=exp_name,
+        name=meta["name"],
+        group=meta["group"],
+        tags=meta["tags"],
         save_dir="output",
     )
+    wandb_logger.experiment.config.update(meta["config"], allow_val_change=True)
 
     ckpt_dirpath = Path(
         f"output/lightning_logs/finetuning/cardiac/{exp_name}/checkpoints/"
@@ -295,4 +308,5 @@ if __name__ == "__main__":
         backbone_name=args.backbone_name,
         ckpt_name=args.ckpt_name,
         strategy=args.strategy,
+        dataset=args.finetuning_dataset,
     )
